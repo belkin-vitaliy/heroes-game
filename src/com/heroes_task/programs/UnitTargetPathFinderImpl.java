@@ -5,10 +5,34 @@ import com.battle.heroes.army.programs.Edge;
 import com.battle.heroes.army.programs.UnitTargetPathFinder;
 
 import java.util.*;
+import java.util.stream.Collectors;
 
 public class UnitTargetPathFinderImpl implements UnitTargetPathFinder {
-    private static final int WIDTH = 27;
-    private static final int HEIGHT = 21;
+    /**
+     * Представляет собой фиксированную константу, используемую для определения ширины координатного пространства в системе.
+     * Это значение в основном применяется в вычислениях или методах, требующих стандартизированного измерения ширины.
+     * Будучи неизменным, оно служит в качестве единой ссылки на размерность во всём классе.
+     */
+    private static final int WIDTH_PLACE = 27;
+    /**
+     * Представляет собой фиксированное значение высоты, используемое для вычислений в системе координат на основе сетки.
+     * Эта константа определяет вертикальную границу для операций, требующих измерения высоты,
+     * и служит неизменяемым параметром для размещения или проверки единичных координат.
+     */
+    private static final int HEIGHT_PLACE = 21;
+    /**
+     * Представляет возможные направления движения в двумерной сетке.
+     * Каждый подмассив содержит два целых числа, где первое целое число представляет
+     * изменение координаты x, а второе целое число представляет изменение координаты y.
+     *
+     * Эти направления соответствуют:
+     * - {-1, 0}: движение вверх (уменьшение координаты x).
+     * - {1, 0}: движение вниз (увеличение координаты x).
+     * - {0, -1}: движение влево (уменьшение координаты y).
+     * - {0, 1}: движение вправо (увеличение координаты y).
+     *
+     * Обычно используется для навигации или алгоритмов поиска пути в структуре 2D-сетки.
+     */
     private static final int[][] DIRECTIONS = {{-1, 0}, {1, 0}, {0, -1}, {0, 1}};
 
     @Override
@@ -37,15 +61,19 @@ public class UnitTargetPathFinderImpl implements UnitTargetPathFinder {
             for (int[] dir : DIRECTIONS) {
                 int neighborX = current.getX() + dir[0];
                 int neighborY = current.getY() + dir[1];
-                Node neighbor = new Node(neighborX, neighborY);
 
-                if (isValid(neighborX, neighborY, occupiedCells)) {
-                    int newDistance = distances.getOrDefault(current, Integer.MAX_VALUE) + 1;
-                    if (newDistance < distances.getOrDefault(neighbor, Integer.MAX_VALUE)) {
-                        distances.put(neighbor, newDistance);
-                        previous.put(neighbor, current);
-                        queue.add(neighbor);
-                    }
+                if (!isValid(neighborX, neighborY, occupiedCells)) {
+                    continue; // Пропускаем недопустимые клетки
+                }
+
+                Node neighbor = new Node(neighborX, neighborY);
+                int currentDistance = distances.getOrDefault(current, Integer.MAX_VALUE);
+                int newDistance = currentDistance + 1;
+
+                if (newDistance < distances.getOrDefault(neighbor, Integer.MAX_VALUE)) {
+                    distances.put(neighbor, newDistance);
+                    previous.put(neighbor, current);
+                    queue.add(neighbor);
                 }
             }
         }
@@ -54,31 +82,28 @@ public class UnitTargetPathFinderImpl implements UnitTargetPathFinder {
     }
 
     private Set<String> getOccupiedCells(List<Unit> existingUnitList, Unit attackUnit, Unit targetUnit) {
-        Set<String> occupiedCells = new HashSet<>();
-        for (Unit unit : existingUnitList) {
-            if (unit.isAlive() && unit != attackUnit && unit != targetUnit) {
-                occupiedCells.add(unit.getxCoordinate() + "," + unit.getyCoordinate());
-            }
-        }
-        return occupiedCells;
+        return existingUnitList.stream()
+                .filter(unit -> unit.isAlive() && unit != attackUnit && unit != targetUnit)
+                .map(unit -> unit.getxCoordinate() + "," + unit.getyCoordinate())
+                .collect(Collectors.toSet());
     }
 
     private boolean isValid(int x, int y, Set<String> occupiedCells) {
-        return x >= 0 && x < WIDTH && y >= 0 && y < HEIGHT && !occupiedCells.contains(x + "," + y);
+        return x >= 0 && x < WIDTH_PLACE && y >= 0 && y < HEIGHT_PLACE && !occupiedCells.contains(x + "," + y);
     }
 
     private List<Edge> constructPath(Map<Node, Node> previous, Unit attackUnit, Unit targetUnit) {
-        List<Edge> path = new ArrayList<>();
-        Node targetNode = new Node(targetUnit.getxCoordinate(), targetUnit.getyCoordinate());
-        Node current = targetNode;
+        Deque<Edge> pathStack = new ArrayDeque<>();
+        Node current = new Node(targetUnit.getxCoordinate(), targetUnit.getyCoordinate());
 
+        // Построение пути и добавление в стек
         while (current != null) {
-            path.add(new Edge(current.getX(), current.getY()));
+            pathStack.push(new Edge(current.getX(), current.getY())); // Используем стек для добавления
             current = previous.get(current);
         }
 
-        Collections.reverse(path);
-        return path;
+        // Преобразуем стек в список
+        return new ArrayList<>(pathStack);
     }
 
     private static class Node {
@@ -108,7 +133,16 @@ public class UnitTargetPathFinderImpl implements UnitTargetPathFinder {
 
         @Override
         public int hashCode() {
-            return Objects.hash(x, y);
+            return 31 * x + y;
         }
+
+        @Override
+        public String toString() {
+            return "Node{" +
+                    "x=" + x +
+                    ", y=" + y +
+                    '}';
+        }
+
     }
 }
